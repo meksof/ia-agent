@@ -1,59 +1,29 @@
-# B
+# IA Agent
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.1.4.
+A chat app to interact with local model via an ollama api.
 
-## Development server
+## Features
 
-To start a local development server, run:
+The app will have the following features:
+- Chat interface including message input and display current conversation
+- Chat history on a sidebar with the ability to switch between conversations
+- Support for multiple models and model switching
 
-```bash
-ng serve
-```
+## Rules
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- Build a context message, which includes the conversation history and the current user input, and send it to the local model via the ollama api.
+- An input to select the model to use on each conversation.
+- Disable the input for model selection when the conversation has messages, to avoid confusion. The model can only be selected at the beginning of the conversation.
+- The app should be responsive and work well on both desktop and mobile devices.
+- Generate a subject line for each conversation based on the first user message, and display it in the chat history sidebar.
 
-## Code scaffolding
+## Api
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+The api is under `http://localhost:11434` and the endpoint is `/api/generate` for generating response, and `/api/tags` for listing all models, and `/api/ps` for listing all running models.
 
-```bash
-ng generate component component-name
-```
+Use `.rest/ollama.http` for testing the api.
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
 
-```bash
-ng generate --help
-```
+## TODOs
 
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- Add a notification service when the model is not responding or something went wrong. A timeout limit for the model response should be fixed on a config file.
