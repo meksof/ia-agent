@@ -1,0 +1,43 @@
+# send a chat message
+POST http://localhost:11434/api/generate
+Content-Type: application/json
+
+{
+  "model": "tinyllama:latest",
+  "role": "assistant",
+  "format": "json",
+  "stream": false,
+  "prompt": "Are you wake up?"
+}
+###
+# list all models
+GET http://localhost:11434/api/tags
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Thu, 19 Mar 2026 13:56:43 GMT
+content-length: 720
+connection: close
+###
+# list running models
+GET http://localhost:11434/api/ps
+
+HTTP/1.1 200  - OK
+content-type: application/json; charset=utf-8
+date: Thu, 19 Mar 2026 14:43:54 GMT
+content-length: 13
+connection: close
+###
+# Bad request
+POST http://localhost:11434/api/generate
+Content-Type: application/json
+
+{
+    "fakeRequest": null
+}
+
+HTTP/1.1 404  - Not Found
+content-type: application/json; charset=utf-8
+date: Thu, 19 Mar 2026 14:50:40 GMT
+content-length: 30
+connection: close
