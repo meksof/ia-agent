@@ -47,7 +47,7 @@ import { ModelSelectorComponent } from '../model-selector/model-selector.compone
           }
           
           @if (conversationService.isLoading()) {
-            <div class="flex justify-start">
+            <div id="spinner" class="flex justify-start">
               <div class="bg-gray-200 rounded-lg p-3 text-gray-800">
                 <div class="flex items-center gap-2">
                   <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
