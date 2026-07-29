@@ -1,63 +1,35 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { OllamaService } from './ollama.service';
 import { Conversation, Message, OllamaModel } from '../models/chat.models';
 import { firstValueFrom } from 'rxjs';
+import { takeUntil, Subject } from 'rxjs';
+import { ConversationStore } from './conversation.store';
 
 @Injectable({
     providedIn: 'root'
 })
 export class ConversationService {
     private ollamaService = inject(OllamaService);
+    private store = inject(ConversationStore);
 
-    private conversationsSignal = signal<Conversation[]>([]);
-    private modelsSignal = signal<OllamaModel[]>([]);
-    private isLoadingMapSignal = signal<Map<string, boolean>>(new Map());
-    private errorSignal = signal<string | null>(null);
-    private mobileViewSignal = signal<'chat' | 'sidebar'>('chat');
+    private cancelRequests$ = new Subject<void>();
+    private userCancelled = false;
 
-    conversations = computed(() => this.conversationsSignal());
-    activeConversation = signal<Conversation | null>(null);
-    models = computed(() => this.modelsSignal());
-    isLoading = computed(() => {
-        const conv = this.activeConversation();
-        if (!conv) return false;
-        return this.isLoadingMapSignal().get(conv.id) ?? false;
-    });
-    error = computed(() => this.errorSignal());
-    mobileView = computed(() => this.mobileViewSignal());
+    get conversations() { return this.store.conversations; }
+    get activeConversation() { return this.store.activeConversation; }
+    get models() { return this.store.models; }
+    get isLoading() { return this.store.isLoading; }
+    get error() { return this.store.error; }
+    get mobileView() { return this.store.mobileView; }
 
     constructor() {
-        this.loadFromStorage();
         this.loadModels();
-    }
-
-    private loadFromStorage(): void {
-        const stored = localStorage.getItem('conversations');
-        if (stored) {
-            const conversations = JSON.parse(stored).map((c: any) => ({
-                ...c,
-                createdAt: new Date(c.createdAt),
-                updatedAt: new Date(c.updatedAt),
-                messages: c.messages.map((m: any) => ({
-                    ...m,
-                    timestamp: new Date(m.timestamp)
-                }))
-            }));
-            this.conversationsSignal.set(conversations);
-            if (conversations.length > 0) {
-                this.activeConversation.set(conversations[0]);
-            }
-        }
-    }
-
-    private saveToStorage(): void {
-        localStorage.setItem('conversations', JSON.stringify(this.conversationsSignal()));
     }
 
     loadModels(): void {
         this.ollamaService.getModels().subscribe({
             next: (response) => {
-                this.modelsSignal.set(response.models);
+                this.store.setModels(response.models);
             },
             error: (err) => console.error('Failed to load models:', err)
         });
@@ -72,42 +44,36 @@ export class ConversationService {
             createdAt: new Date(),
             updatedAt: new Date()
         };
-        this.conversationsSignal.update(convs => [conversation, ...convs]);
-        this.activeConversation.set(conversation);
-        this.saveToStorage();
+        this.store.addConversation(conversation);
         return conversation;
     }
 
     selectConversation(id: string): void {
-        this.errorSignal.set(null);
-        const conv = this.conversationsSignal().find(c => c.id === id);
-        if (!conv) return;
-        this.activeConversation.set(conv);
-        this.setMobileView('chat');
+        this.store.selectConversation(id);
     }
 
     deleteConversation(id: string): void {
-        this.conversationsSignal.update(convs => {
-            const filtered = convs.filter(c => c.id !== id);
-            if (this.activeConversation()?.id === id) {
-                this.activeConversation.set(filtered.length > 0 ? filtered[0] : null);
-            }
-            return filtered;
-        });
-        this.saveToStorage();
+        this.store.deleteConversation(id);
     }
 
     setModel(model: string): void {
-        const conv = this.activeConversation();
-        if (!conv) return;
-        const updated = { ...conv, model };
-        this.updateConversationsAndActive(updated);
-        this.saveToStorage();
+        this.store.setModel(model);
+    }
+
+    setMobileView(view: 'chat' | 'sidebar'): void {
+        this.store.setMobileView(view);
+    }
+
+    cancelCurrentRequest(): void {
+        this.userCancelled = true;
+        this.cancelRequests$.next();
     }
 
     async sendMessage(content: string): Promise<void> {
-        const conv = this.activeConversation();
+        const conv = this.store.activeConversation();
         if (!conv || !content.trim()) return;
+
+        this.userCancelled = false;
 
         const userMessage: Message = {
             id: crypto.randomUUID(),
@@ -116,20 +82,19 @@ export class ConversationService {
             timestamp: new Date()
         };
 
-        const updatedConv = this.addUserMessage(conv, userMessage);
-        this.updateConversationsAndActive(updatedConv);
-        this.saveToStorage();
-        this.setLoading(conv.id, true);
-        this.errorSignal.set(null);
+        const next = this.addUserMessage(conv, userMessage);
+        this.store.updateConversation(next);
+        this.store.setLoading(conv.id, true);
+        this.store.setError(null);
 
         try {
-            const contextMessages = this.buildContext(updatedConv, userMessage);
+            const contextMessages = this.buildContext(next, userMessage);
             const response = await firstValueFrom(
                 this.ollamaService.generate({
                     model: conv.model,
                     prompt: contextMessages,
                     stream: false
-                })
+                }).pipe(takeUntil(this.cancelRequests$))
             );
 
             if (response) {
@@ -139,17 +104,20 @@ export class ConversationService {
                     content: response.response,
                     timestamp: new Date()
                 };
-                const finalConv = this.addAssistantMessage(updatedConv, assistantMessage);
-                this.updateConversationsAndActive(finalConv);
-                this.saveToStorage();
+                const final = this.addAssistantMessage(next, assistantMessage);
+                this.store.updateConversation(final);
             }
         } catch (err) {
-            if (this.activeConversation()?.id === conv.id) {
-                this.errorSignal.set('Failed to get a response from the model. Please check that Ollama is running and the model is available.');
+            if (this.userCancelled) {
+                this.userCancelled = false;
+                return;
+            }
+            if (this.store.activeConversation()?.id === conv.id) {
+                this.store.setError('Failed to get a response from the model. Please check that Ollama is running and the model is available.');
             }
             console.error('Failed to get response:', err);
         } finally {
-            this.setLoading(conv.id, false);
+            this.store.setLoading(conv.id, false);
         }
     }
 
@@ -170,21 +138,6 @@ export class ConversationService {
         };
     }
 
-    private updateConversationsAndActive(updatedConv: Conversation): void {
-        this.conversationsSignal.update(convs =>
-            convs.map(c => c.id === updatedConv.id ? updatedConv : c)
-        );
-        this.activeConversation.set(updatedConv);
-    }
-
-    private setLoading(convId: string, loading: boolean): void {
-        this.isLoadingMapSignal.update(map => {
-            const newMap = new Map(map);
-            newMap.set(convId, loading);
-            return newMap;
-        });
-    }
-
     private buildContext(conv: Conversation, currentMessage: Message): string {
         let context = '';
         for (const msg of conv.messages) {
@@ -199,9 +152,5 @@ export class ConversationService {
         const words = cleaned.split(/\s+/).filter(Boolean);
         if (words.length <= 5) return cleaned;
         return words.slice(0, 5).join(' ') + '...';
-    }
-
-    setMobileView(view: 'chat' | 'sidebar'): void {
-        this.mobileViewSignal.set(view);
     }
 }
