@@ -1,175 +1,156 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { OllamaService } from './ollama.service';
 import { Conversation, Message, OllamaModel } from '../models/chat.models';
+import { firstValueFrom } from 'rxjs';
+import { takeUntil, Subject } from 'rxjs';
+import { ConversationStore } from './conversation.store';
 
 @Injectable({
-  providedIn: 'root'
+    providedIn: 'root'
 })
 export class ConversationService {
-  private ollamaService = inject(OllamaService);
-  
-  private conversationsSignal = signal<Conversation[]>([]);
-  private activeConversationIdSignal = signal<string | null>(null);
-  private modelsSignal = signal<OllamaModel[]>([]);
-  private isLoadingSignal = signal(false);
-  private mobileViewSignal = signal<'chat' | 'sidebar'>('chat');
+    private ollamaService = inject(OllamaService);
+    private store = inject(ConversationStore);
 
-  conversations = computed(() => this.conversationsSignal());
-  activeConversation = computed(() => {
-    const id = this.activeConversationIdSignal();
-    return this.conversationsSignal().find(c => c.id === id) ?? null;
-  });
-  models = computed(() => this.modelsSignal());
-  isLoading = computed(() => this.isLoadingSignal());
-  mobileView = computed(() => this.mobileViewSignal());
+    private cancelRequests$ = new Subject<void>();
+    private userCancelled = false;
 
-  constructor() {
-    this.loadFromStorage();
-    this.loadModels();
-  }
+    get conversations() { return this.store.conversations; }
+    get activeConversation() { return this.store.activeConversation; }
+    get models() { return this.store.models; }
+    get isLoading() { return this.store.isLoading; }
+    get error() { return this.store.error; }
+    get mobileView() { return this.store.mobileView; }
 
-  private loadFromStorage(): void {
-    const stored = localStorage.getItem('conversations');
-    if (stored) {
-      const conversations = JSON.parse(stored).map((c: any) => ({
-        ...c,
-        createdAt: new Date(c.createdAt),
-        updatedAt: new Date(c.updatedAt),
-        messages: c.messages.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }))
-      }));
-      this.conversationsSignal.set(conversations);
-      if (conversations.length > 0) {
-        this.activeConversationIdSignal.set(conversations[0].id);
-      }
+    constructor() {
+        this.loadModels();
     }
-  }
 
-  private saveToStorage(): void {
-    localStorage.setItem('conversations', JSON.stringify(this.conversationsSignal()));
-  }
-
-  loadModels(): void {
-    this.ollamaService.getModels().subscribe({
-      next: (response) => {
-        this.modelsSignal.set(response.models);
-      },
-      error: (err) => console.error('Failed to load models:', err)
-    });
-  }
-
-  createConversation(model: string): Conversation {
-    const conversation: Conversation = {
-      id: crypto.randomUUID(),
-      title: 'New conversation',
-      model,
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    this.conversationsSignal.update(convs => [conversation, ...convs]);
-    this.activeConversationIdSignal.set(conversation.id);
-    this.saveToStorage();
-    return conversation;
-  }
-
-  selectConversation(id: string): void {
-    this.activeConversationIdSignal.set(id);
-    this.setMobileView('chat');
-  }
-
-  deleteConversation(id: string): void {
-    this.conversationsSignal.update(convs => convs.filter(c => c.id !== id));
-    if (this.activeConversationIdSignal() === id) {
-      const remaining = this.conversationsSignal();
-      this.activeConversationIdSignal.set(remaining.length > 0 ? remaining[0].id : null);
+    loadModels(): void {
+        this.ollamaService.getModels().subscribe({
+            next: (response) => {
+                this.store.setModels(response.models);
+            },
+            error: (err) => console.error('Failed to load models:', err)
+        });
     }
-    this.saveToStorage();
-  }
 
-  setModel(model: string): void {
-    const convId = this.activeConversationIdSignal();
-    if (convId) {
-      this.conversationsSignal.update(convs => 
-        convs.map(c => c.id === convId ? { ...c, model } : c)
-      );
-      this.saveToStorage();
+    createConversation(model: string): Conversation {
+        const conversation: Conversation = {
+            id: crypto.randomUUID(),
+            title: 'New conversation',
+            model,
+            messages: [],
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+        this.store.addConversation(conversation);
+        return conversation;
     }
-  }
 
-  async sendMessage(content: string): Promise<void> {
-    const conv = this.activeConversation();
-    if (!conv || !content.trim()) return;
+    selectConversation(id: string): void {
+        this.store.selectConversation(id);
+    }
 
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: content.trim(),
-      timestamp: new Date()
-    };
+    deleteConversation(id: string): void {
+        this.store.deleteConversation(id);
+    }
 
-    this.conversationsSignal.update(convs => 
-      convs.map(c => c.id === conv.id ? {
-        ...c,
-        messages: [...c.messages, userMessage],
-        updatedAt: new Date(),
-        title: c.messages.length === 0 ? this.generateTitle(content) : c.title
-      } : c)
-    );
+    setModel(model: string): void {
+        this.store.setModel(model);
+    }
 
-    this.saveToStorage();
-    this.isLoadingSignal.set(true);
+    setMobileView(view: 'chat' | 'sidebar'): void {
+        this.store.setMobileView(view);
+    }
 
-    try {
-      const contextMessages = this.buildContext(conv.id, userMessage);
-      const response = await this.ollamaService.generate({
-        model: conv.model,
-        prompt: contextMessages,
-        stream: false
-      }).toPromise();
+    cancelCurrentRequest(): void {
+        this.userCancelled = true;
+        this.cancelRequests$.next();
+    }
 
-      if (response) {
-        const assistantMessage: Message = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: response.response,
-          timestamp: new Date()
+    async sendMessage(content: string): Promise<void> {
+        const conv = this.store.activeConversation();
+        if (!conv || !content.trim()) return;
+
+        this.userCancelled = false;
+
+        const userMessage: Message = {
+            id: crypto.randomUUID(),
+            role: 'user',
+            content: content.trim(),
+            timestamp: new Date()
         };
 
-        this.conversationsSignal.update(convs => 
-          convs.map(c => c.id === conv.id ? {
-            ...c,
-            messages: [...c.messages, assistantMessage],
+        const next = this.addUserMessage(conv, userMessage);
+        this.store.updateConversation(next);
+        this.store.setLoading(conv.id, true);
+        this.store.setError(null);
+
+        try {
+            const contextMessages = this.buildContext(next, userMessage);
+            const response = await firstValueFrom(
+                this.ollamaService.generate({
+                    model: conv.model,
+                    prompt: contextMessages,
+                    stream: false
+                }).pipe(takeUntil(this.cancelRequests$))
+            );
+
+            if (response) {
+                const assistantMessage: Message = {
+                    id: crypto.randomUUID(),
+                    role: 'assistant',
+                    content: response.response,
+                    timestamp: new Date()
+                };
+                const final = this.addAssistantMessage(next, assistantMessage);
+                this.store.updateConversation(final);
+            }
+        } catch (err) {
+            if (this.userCancelled) {
+                this.userCancelled = false;
+                return;
+            }
+            if (this.store.activeConversation()?.id === conv.id) {
+                this.store.setError('Failed to get a response from the model. Please check that Ollama is running and the model is available.');
+            }
+            console.error('Failed to get response:', err);
+        } finally {
+            this.store.setLoading(conv.id, false);
+        }
+    }
+
+    private addUserMessage(conv: Conversation, message: Message): Conversation {
+        return {
+            ...conv,
+            messages: [...conv.messages, message],
+            updatedAt: new Date(),
+            title: conv.messages.length === 0 ? this.generateTitle(message.content) : conv.title
+        };
+    }
+
+    private addAssistantMessage(conv: Conversation, message: Message): Conversation {
+        return {
+            ...conv,
+            messages: [...conv.messages, message],
             updatedAt: new Date()
-          } : c)
-        );
-        this.saveToStorage();
-      }
-    } catch (error) {
-      console.error('Failed to get response:', error);
-    } finally {
-      this.isLoadingSignal.set(false);
+        };
     }
-  }
 
-  private buildContext(conversationId: string, currentMessage: Message): string {
-    const conv = this.conversationsSignal().find(c => c.id === conversationId);
-    if (!conv) return currentMessage.content;
-
-    let context = '';
-    for (const msg of conv.messages) {
-      context += `${msg.role}: ${msg.content}\n`;
+    private buildContext(conv: Conversation, currentMessage: Message): string {
+        let context = '';
+        for (const msg of conv.messages) {
+            context += `${msg.role}: ${msg.content}\n`;
+        }
+        context += `user: ${currentMessage.content}`;
+        return context;
     }
-    context += `user: ${currentMessage.content}`;
-    return context;
-  }
 
-  private generateTitle(firstMessage: string): string {
-    const words = firstMessage.trim().split(/\s+/);
-    if (words.length <= 5) return firstMessage.trim();
-    return words.slice(0, 5).join(' ') + '...';
-  }
-
-  setMobileView(view: 'chat' | 'sidebar'): void {
-    this.mobileViewSignal.set(view);
-  }
+    private generateTitle(firstMessage: string): string {
+        const cleaned = firstMessage.trim().replace(/[^\w\s]/g, '');
+        const words = cleaned.split(/\s+/).filter(Boolean);
+        if (words.length <= 5) return cleaned;
+        return words.slice(0, 5).join(' ') + '...';
+    }
 }

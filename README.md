@@ -1,6 +1,6 @@
 # IA Agent
 
-A chat app to interact with local model via an ollama api.
+A chat app to interact with local models via an ollama api.
 
 ## Api
 

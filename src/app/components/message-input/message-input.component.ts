@@ -6,7 +6,7 @@ import { ConversationService } from '../../services/conversation.service';
   selector: 'app-message-input',
   imports: [FormsModule],
   template: `
-    <div class="flex gap-2 mt-3">
+    <div class="flex gap-2 mt-3 relative">
       <input
         type="text"
         [ngModel]="message()"
@@ -16,6 +16,17 @@ import { ConversationService } from '../../services/conversation.service';
         placeholder="Type your message..."
         class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
       />
+      @if (conversationService.isLoading()) {
+        <button
+          (click)="stopGeneration()"
+          class="absolute -top-4 right-16 w-9 h-9 rounded-full border-2 border-gray-300 bg-gray-400/60 hover:bg-gray-400/80 flex items-center justify-center shadow-md transition-colors"
+          title="Stop generating"
+        >
+          <svg class="w-4 h-4 text-gray-600" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="3" y="3" width="10" height="10" rx="1.5" />
+          </svg>
+        </button>
+      }
       <button
         (click)="sendMessage()"
         [disabled]="!message().trim() || conversationService.isLoading() || !conversation()"
@@ -46,5 +57,9 @@ export class MessageInputComponent {
       this.conversationService.sendMessage(this.message());
       this.message.set('');
     }
+  }
+
+  stopGeneration(): void {
+    this.conversationService.cancelCurrentRequest();
   }
 }
