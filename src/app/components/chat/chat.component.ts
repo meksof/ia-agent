@@ -2,10 +2,11 @@ import { Component, inject, ElementRef, ViewChild, AfterViewChecked } from '@ang
 import { ConversationService } from '../../services/conversation.service';
 import { MessageInputComponent } from '../message-input/message-input.component';
 import { ModelSelectorComponent } from '../model-selector/model-selector.component';
+import { ModelsNoticeComponent } from '../models-notice/models-notice.component';
 
 @Component({
   selector: 'app-chat',
-  imports: [MessageInputComponent, ModelSelectorComponent],
+  imports: [MessageInputComponent, ModelSelectorComponent, ModelsNoticeComponent],
   template: `
     <div class="flex flex-col h-full">
       <div class="flex items-center justify-between p-4 border-b bg-white">
@@ -13,7 +14,15 @@ import { ModelSelectorComponent } from '../model-selector/model-selector.compone
       </div>
       
       <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50" #chatContainer>
-        @if (conversationService.activeConversation()) {
+        @if (conversationService.modelsStatus() === 'not-installed') {
+          <app-models-notice type="not-installed" />
+        } @else if (conversationService.modelsStatus() === 'no-models') {
+          <app-models-notice type="no-models" />
+        } @else if (conversationService.modelsStatus() === 'error') {
+          <app-models-notice type="error" />
+        } @else if (conversationService.modelsStatus() === 'loading') {
+          <app-models-notice type="loading" />
+        } @else if (conversationService.activeConversation()) {
           @if (conversationService.activeConversation()!.messages.length === 0) {
             <div class="flex flex-col items-center justify-center h-full text-center">
               <div class="bg-blue-100 rounded-full p-4 mb-4">

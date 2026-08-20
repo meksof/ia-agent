@@ -9,7 +9,8 @@ import { ConversationService } from '../../services/conversation.service';
       <div class="p-4 border-b border-gray-700">
         <button 
           (click)="newConversation()"
-          class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
+          [disabled]="conversationService.modelsStatus() !== 'loaded'"
+          class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
         >
           + New Chat
         </button>

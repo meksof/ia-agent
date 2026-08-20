@@ -6,7 +6,8 @@
     "start": "ng serve",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "build": "ng build"
+    "build": "ng build",
+    "e2e": "npx playwright test"
   },
   "prettier": {
     "overrides": [
@@ -33,6 +34,7 @@
     "@angular/build": "^20.1.4",
     "@angular/cli": "^20.1.4",
     "@angular/compiler-cli": "^20.1.0",
+    "@playwright/test": "^1.62.1",
     "@types/jasmine": "~5.1.0",
     "autoprefixer": "^10.4.27",
     "jasmine-core": "~5.8.0",
