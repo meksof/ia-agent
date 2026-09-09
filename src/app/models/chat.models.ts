@@ -23,6 +23,8 @@ export interface OllamaTagsResponse {
   models: OllamaModel[];
 }
 
+export type ModelsStatus = 'idle' | 'loading' | 'loaded' | 'not-installed' | 'no-models' | 'error';
+
 export interface OllamaGenerateRequest {
   model: string;
   prompt: string;

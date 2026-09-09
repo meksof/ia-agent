@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { Conversation, Message, OllamaModel } from '../models/chat.models';
+import { Conversation, Message, OllamaModel, ModelsStatus } from '../models/chat.models';
 
 @Injectable({
     providedIn: 'root'
@@ -7,6 +7,7 @@ import { Conversation, Message, OllamaModel } from '../models/chat.models';
 export class ConversationStore {
     private conversationsSignal = signal<Conversation[]>([]);
     private modelsSignal = signal<OllamaModel[]>([]);
+    private modelsStatusSignal = signal<ModelsStatus>('idle');
     private isLoadingMapSignal = signal<Map<string, boolean>>(new Map());
     private errorSignal = signal<string | null>(null);
     private mobileViewSignal = signal<'chat' | 'sidebar'>('chat');
@@ -14,6 +15,7 @@ export class ConversationStore {
     conversations = computed(() => this.conversationsSignal());
     activeConversation = signal<Conversation | null>(null);
     models = computed(() => this.modelsSignal());
+    modelsStatus = computed(() => this.modelsStatusSignal());
     isLoading = computed(() => {
         const conv = this.activeConversation();
         if (!conv) return false;
@@ -51,6 +53,11 @@ export class ConversationStore {
 
     setModels(models: OllamaModel[]): void {
         this.modelsSignal.set(models);
+        this.modelsStatusSignal.set(models.length > 0 ? 'loaded' : 'no-models');
+    }
+
+    setModelsStatus(status: ModelsStatus): void {
+        this.modelsStatusSignal.set(status);
     }
 
     addConversation(conv: Conversation): void {

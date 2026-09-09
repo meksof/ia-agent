@@ -18,6 +18,7 @@ export class ConversationService {
     get conversations() { return this.store.conversations; }
     get activeConversation() { return this.store.activeConversation; }
     get models() { return this.store.models; }
+    get modelsStatus() { return this.store.modelsStatus; }
     get isLoading() { return this.store.isLoading; }
     get error() { return this.store.error; }
     get mobileView() { return this.store.mobileView; }
@@ -27,11 +28,18 @@ export class ConversationService {
     }
 
     loadModels(): void {
+        this.store.setModelsStatus('loading');
         this.ollamaService.getModels().subscribe({
             next: (response) => {
                 this.store.setModels(response.models);
             },
-            error: (err) => console.error('Failed to load models:', err)
+            error: (err) => {
+                if (err.status === 0) {
+                    this.store.setModelsStatus('not-installed');
+                } else {
+                    this.store.setModelsStatus('error');
+                }
+            }
         });
     }
 
