@@ -1,11 +1,9 @@
 import { Injectable, inject } from '@angular/core';
+import { firstValueFrom, Subject, takeUntil, TimeoutError } from 'rxjs';
+import { Conversation, Message } from '../models/chat.models';
+import { ConversationStore } from './conversation.store';
 import { OllamaService } from './ollama.service';
 import { ToastService } from './toast.service';
-import { Conversation, Message, OllamaModel } from '../models/chat.models';
-import { firstValueFrom } from 'rxjs';
-import { takeUntil, Subject } from 'rxjs';
-import { ConversationStore } from './conversation.store';
-import { TimeoutError } from 'rxjs';
 
 @Injectable({
     providedIn: 'root'
@@ -135,8 +133,6 @@ export class ConversationService {
                     'error'
                 );
             }
-
-            console.error('Failed to get response:', err);
         } finally {
             this.store.setLoading(conv.id, false);
         }
