@@ -1,5 +1,5 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
-import { Conversation, Message, OllamaModel, ModelsStatus } from '../models/chat.models';
+import { Injectable, signal, computed } from '@angular/core';
+import { Conversation, OllamaModel, ModelsStatus } from '../models/chat.models';
 
 @Injectable({
     providedIn: 'root'
@@ -9,7 +9,6 @@ export class ConversationStore {
     private modelsSignal = signal<OllamaModel[]>([]);
     private modelsStatusSignal = signal<ModelsStatus>('idle');
     private isLoadingMapSignal = signal<Map<string, boolean>>(new Map());
-    private errorSignal = signal<string | null>(null);
     private mobileViewSignal = signal<'chat' | 'sidebar'>('chat');
 
     conversations = computed(() => this.conversationsSignal());
@@ -21,7 +20,6 @@ export class ConversationStore {
         if (!conv) return false;
         return this.isLoadingMapSignal().get(conv.id) ?? false;
     });
-    error = computed(() => this.errorSignal());
     mobileView = computed(() => this.mobileViewSignal());
 
     constructor() {
@@ -69,7 +67,6 @@ export class ConversationStore {
     selectConversation(id: string): boolean {
         const conv = this.conversationsSignal().find(c => c.id === id);
         if (!conv) return false;
-        this.errorSignal.set(null);
         this.activeConversation.set(conv);
         this.mobileViewSignal.set('chat');
         return true;
@@ -106,10 +103,6 @@ export class ConversationStore {
             next.set(convId, loading);
             return next;
         });
-    }
-
-    setError(message: string | null): void {
-        this.errorSignal.set(message);
     }
 
     setMobileView(view: 'chat' | 'sidebar'): void {

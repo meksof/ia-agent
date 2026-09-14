@@ -21,7 +21,6 @@ export class ConversationService {
     get models() { return this.store.models; }
     get modelsStatus() { return this.store.modelsStatus; }
     get isLoading() { return this.store.isLoading; }
-    get error() { return this.store.error; }
     get mobileView() { return this.store.mobileView; }
 
     constructor() {
@@ -94,7 +93,6 @@ export class ConversationService {
         const next = this.addUserMessage(conv, userMessage);
         this.store.updateConversation(next);
         this.store.setLoading(conv.id, true);
-        this.store.setError(null);
 
         try {
             const contextMessages = this.buildContext(next, userMessage);
