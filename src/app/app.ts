@@ -3,10 +3,11 @@ import { ConversationService } from './services/conversation.service';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { ChatComponent } from './components/chat/chat.component';
 import { BottomNavComponent } from './components/bottom-nav/bottom-nav.component';
+import { ToastComponent } from './components/toast/toast.component';
 
 @Component({
   selector: 'app-root',
-  imports: [SidebarComponent, ChatComponent, BottomNavComponent],
+  imports: [SidebarComponent, ChatComponent, BottomNavComponent, ToastComponent],
   template: `
     <div class="flex h-screen bg-gray-100">
       <!-- Sidebar - Desktop -->
@@ -40,6 +41,9 @@ import { BottomNavComponent } from './components/bottom-nav/bottom-nav.component
       <!-- Bottom Navigation - Mobile -->
       <app-bottom-nav />
     </div>
+
+    <!-- Toast notifications -->
+    <app-toast />
   `,
   styles: ``
 })

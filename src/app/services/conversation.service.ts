@@ -1,15 +1,16 @@
 import { Injectable, inject } from '@angular/core';
-import { OllamaService } from './ollama.service';
-import { Conversation, Message, OllamaModel } from '../models/chat.models';
-import { firstValueFrom } from 'rxjs';
-import { takeUntil, Subject } from 'rxjs';
+import { firstValueFrom, Subject, takeUntil, TimeoutError } from 'rxjs';
+import { Conversation, Message } from '../models/chat.models';
 import { ConversationStore } from './conversation.store';
+import { OllamaService } from './ollama.service';
+import { ToastService } from './toast.service';
 
 @Injectable({
     providedIn: 'root'
 })
 export class ConversationService {
     private ollamaService = inject(OllamaService);
+    private toastService = inject(ToastService);
     private store = inject(ConversationStore);
 
     private cancelRequests$ = new Subject<void>();
@@ -120,10 +121,18 @@ export class ConversationService {
                 this.userCancelled = false;
                 return;
             }
-            if (this.store.activeConversation()?.id === conv.id) {
-                this.store.setError('Failed to get a response from the model. Please check that Ollama is running and the model is available.');
+
+            if (err instanceof TimeoutError) {
+                this.toastService.show(
+                    'The model took too long to respond. Please try again or select a different model.',
+                    'error'
+                );
+            } else {
+                this.toastService.show(
+                    'Failed to get a response from the model. Please check that Ollama is running and the model is available.',
+                    'error'
+                );
             }
-            console.error('Failed to get response:', err);
         } finally {
             this.store.setLoading(conv.id, false);
         }
